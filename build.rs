@@ -4,9 +4,12 @@ use std::path::Path;
 use std::env;
 
 fn main() {
-    let buildtype = "release";
+    let buildtype = env::var("PROFILE").unwrap();
     let dpdk_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("dpdk");
     let build_dir = dpdk_dir.join("build");
+
+    // This is a bit hax (we only rebuild if the git version changes) but hopefully good enough.
+    println!("cargo:rerun-if-changed=.git/modules/dpdk/HEAD");
 
     if !build_dir.exists() {
         println!("cargo:warning=Configuring DPDK...");
@@ -16,6 +19,13 @@ fn main() {
             .current_dir(&dpdk_dir)
             .status()
             .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
+    } else {
+        Command::new("meson")
+            .arg(format!("--buildtype={}", buildtype))
+            .arg("--reconfigure")
+            .current_dir(&dpdk_dir)
+            .status()
+            .unwrap_or_else(|e| panic!("Failed to reconfigure DPDK: {:?}", e));
     }
 
     println!("cargo:warning=Building DPDK...");
@@ -23,17 +33,24 @@ fn main() {
         .current_dir(&build_dir)
         .status()
         .unwrap_or_else(|e| panic!("DPDK build failed: {:?}", e));
-    
-    let lib_dir = build_dir.join("lib");
-    println!("cargo:rustc-link-search=native={}", lib_dir.to_str().unwrap());
 
-    for entry in std::fs::read_dir(lib_dir).expect("Failed to list dir") {
-        let entry = entry.expect("Failed to read directory entry");
-        let filename = entry.file_name().into_string().expect("Non UTF-8 filename");
-        if filename.starts_with("lib") && filename.ends_with(".a") {
-            println!("cargo:rustc-link-lib=static={}", &filename[3..filename.len()-2]);
+    let binary_dirs = &[
+        "lib",
+        "drivers",
+    ];
+    for binary_dir in binary_dirs {
+        let p = build_dir.join(binary_dir);
+        println!("cargo:rustc-link-search=native={}", p.to_str().unwrap());
+
+        for entry in std::fs::read_dir(p).expect("Failed to list dir") {
+            let entry = entry.expect("Failed to read directory entry");
+            let filename = entry.file_name().into_string().expect("Non UTF-8 filename");
+            if filename.starts_with("lib") && filename.ends_with(".a") {
+                println!("cargo:rustc-link-lib=static={}", &filename[3..filename.len()-2]);
+            }
         }
     }
+
     println!("cargo:rustc-link-lib=numa");
 
     println!("cargo:warning=Generating bindings...");
@@ -81,5 +98,7 @@ fn main() {
         builder.include(header_location);
     }
     builder.compile("inlined");
+
+    println!("cargo:warning=DPDK build done!");
 
 }
