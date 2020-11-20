@@ -2,103 +2,131 @@ use bindgen::Builder;
 use std::process::Command;
 use std::path::Path;
 use std::env;
+use std::fs;
 
 fn main() {
-    let buildtype = env::var("PROFILE").unwrap();
-    let dpdk_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("dpdk");
-    let build_dir = dpdk_dir.join("build");
-
     // This is a bit hax (we only rebuild if the git version changes) but hopefully good enough.
     println!("cargo:rerun-if-changed=.git/modules/dpdk/HEAD");
 
-    if !build_dir.exists() {
-        println!("cargo:warning=Configuring DPDK...");
-        Command::new("meson")
-            .arg(format!("--buildtype={}", buildtype))
-            .arg("build")
-            .current_dir(&dpdk_dir)
-            .status()
-            .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
-    } else {
-        Command::new("meson")
-            .arg(format!("--buildtype={}", buildtype))
-            .arg("--reconfigure")
-            .current_dir(&dpdk_dir)
-            .status()
-            .unwrap_or_else(|e| panic!("Failed to reconfigure DPDK: {:?}", e));
+    let buildtype = env::var("PROFILE").unwrap();
+    let out_dir_s = env::var("OUT_DIR").unwrap();
+    let out_dir = Path::new(&out_dir_s);
+    let dpdk_install_dir = out_dir.join("dpdk-install");
+    let dpdk_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("dpdk");
+
+    if !dpdk_install_dir.is_dir() {
+        fs::create_dir_all(&dpdk_install_dir).unwrap();
     }
+
+    println!("cargo:warning=Configuring DPDK...");
+    Command::new("meson")
+        .arg("setup")
+        .arg(&format!("--buildtype={}", buildtype))
+        .arg(&format!("--prefix={}", dpdk_install_dir.to_str().unwrap()))
+        .arg("--wipe")
+        .arg("build")
+        .current_dir(&dpdk_dir)
+        .status()
+        .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
 
     println!("cargo:warning=Building DPDK...");
     Command::new("ninja")
-        .current_dir(&build_dir)
+        .args(&["-C", "build"])
+        .current_dir(&dpdk_dir)
         .status()
-        .unwrap_or_else(|e| panic!("DPDK build failed: {:?}", e));
+        .unwrap_or_else(|e| panic!("Failed to build DPDK: {:?}", e));
 
-    let binary_dirs = &[
-        "lib",
-        "drivers",
-    ];
-    for binary_dir in binary_dirs {
-        let p = build_dir.join(binary_dir);
-        println!("cargo:rustc-link-search=native={}", p.to_str().unwrap());
+    println!("cargo:warning=Installing DPDK...");
+    Command::new("ninja")
+        .args(&["-C", "build", "install"])
+        .current_dir(&dpdk_dir)
+        .status()
+        .unwrap_or_else(|e| panic!("Failed to install DPDK: {:?}", e)); 
 
-        for entry in std::fs::read_dir(p).expect("Failed to list dir") {
-            let entry = entry.expect("Failed to read directory entry");
-            let filename = entry.file_name().into_string().expect("Non UTF-8 filename");
-            if filename.starts_with("lib") && filename.ends_with(".a") {
-                println!("cargo:rustc-link-lib=static={}", &filename[3..filename.len()-2]);
-            }
+    let pkg_config_path = dpdk_install_dir.join("lib/x86_64-linux-gnu/pkgconfig");
+    let cflags_bytes = Command::new("pkg-config")
+        .env("PKG_CONFIG_PATH", &pkg_config_path)
+        .args(&["--cflags", "libdpdk"])
+        .output()
+        .unwrap_or_else(|e| panic!("Failed pkg-config cflags: {:?}", e))
+        .stdout;
+    let cflags = String::from_utf8(cflags_bytes).unwrap();
+
+    let mut header_locations = vec![];
+
+    for flag in cflags.split(' ') {
+        if flag.starts_with("-I") {
+            let header_location = &flag[2..];
+            header_locations.push(header_location);
         }
     }
 
-    println!("cargo:rustc-link-lib=numa");
+    let ldflags_bytes = Command::new("pkg-config")
+        .env("PKG_CONFIG_PATH", &pkg_config_path)
+        .args(&["--libs", "libdpdk"])
+        .output()
+        .unwrap_or_else(|e| panic!("Failed pkg-config ldflags: {:?}",e ))
+        .stdout;
+    let ldflags = String::from_utf8(ldflags_bytes).unwrap();
 
-    println!("cargo:warning=Generating bindings...");
-    let header_locations = &[
-        "dpdk/build",
-        "dpdk/config",
-        "dpdk/lib/librte_ethdev",
-        "dpdk/lib/librte_eal/include",
-        "dpdk/lib/librte_eal/x86/include",
-        "dpdk/lib/librte_eal/linux/include",
-        "dpdk/lib/librte_net",
-        "dpdk/lib/librte_mbuf",
-        "dpdk/lib/librte_mempool",
-        "dpdk/lib/librte_ring",
-    ];
+    let mut library_location = None;
+    let mut lib_names = vec![];
+
+    for flag in ldflags.split(' ') {
+        if flag.starts_with("-L") {
+            library_location = Some(&flag[2..]);
+        } else if flag.starts_with("-l") {
+            lib_names.push(&flag[2..]);
+        }
+    }
+
+    // Step 1: Now that we've compiled and installed DPDK, point cargo to the staticlibs.
+    println!("cargo:rustc-link-search=native={}", library_location.unwrap());
+    for lib_name in &lib_names {
+        println!("cargo:rustc-link-lib=static={}", lib_name);
+    }
+
+    // Step 2: Generate bindings for the DPDK headers.
     let mut builder = Builder::default();
-    for header_location in header_locations {
+    for header_location in &header_locations {
         builder = builder.clang_arg(&format!("-I{}", header_location));
     }
     let bindings = builder
-        // TODO: These two structs generate bindings with repr(packed) and a repr(align) type
-        // inside. I'm not exactly sure what DPDK is compiling for these, and we don't need them
-        // for now, so I'm just excluding them for now.
         .blacklist_type("rte_arp_ipv4")
         .blacklist_type("rte_arp_hdr")
 
         .header("wrapper.h")
-        .generate_inline_functions(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
         .generate()
-        .expect("Failed to generate bindings");
+        .unwrap_or_else(|e| panic!("Failed to generate bindings: {:?}", e));
+    let bindings_out = out_dir.join("bindings.rs");
+    bindings.write_to_file(bindings_out).expect("Failed to write bindings");
 
-    let out_path = Path::new(&env::var("OUT_DIR").unwrap()).join("bindings.rs");
-    bindings.write_to_file(out_path).expect("Failed to write bindings");
-
-    println!("cargo:warning=Compiling inlined function stubs...");
+    // Step 3: Compile a stub file so Rust can access `inline` functions in the headers 
+    // that aren't compiled into the staticlibs. 
     let mut builder = cc::Build::new();
-    // Set -O3 so all of the helper functions get inlined and only the top level functions (like
-    // rte_pktmbuf_alloc) are remaining.
     builder.opt_level(3);
     builder.pic(true);
     builder.flag("-march=native");
     builder.file("inlined.c");
-    for header_location in header_locations {
+    for header_location in &header_locations {
         builder.include(header_location);
     }
     builder.compile("inlined");
 
-    println!("cargo:warning=DPDK build done!");
-
+    // Step 4: It seems like the flags from pkg-config above don't include all of the dynamic
+    // libraries we need to be able to load the right drivers at runtime. Tell cargo to express a
+    // dependency on these libraries, accumulated from running `ldd` on `testpmd`.
+    let dynamic_libs = &[
+        "ibverbs",
+        "mlx4",
+        "mlx5",
+        "nl-3",
+        "nl-route-3",
+        "numa",
+        "pcap",
+    ];
+    for dynamic_lib in dynamic_libs {
+        println!("cargo:rustc-link-lib=dylib={}", dynamic_lib);
+    }
 }
