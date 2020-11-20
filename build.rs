@@ -19,15 +19,26 @@ fn main() {
     }
 
     println!("cargo:warning=Configuring DPDK...");
-    Command::new("meson")
-        .arg("setup")
-        .arg(&format!("--buildtype={}", buildtype))
-        .arg(&format!("--prefix={}", dpdk_install_dir.to_str().unwrap()))
-        .arg("--wipe")
-        .arg("build")
-        .current_dir(&dpdk_dir)
-        .status()
-        .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
+    let build_dir = dpdk_dir.join("build");
+    if !build_dir.exists() {
+        Command::new("meson")
+            .arg(&format!("--buildtype={}", buildtype))
+            .arg(&format!("--prefix={}", dpdk_install_dir.to_str().unwrap()))
+            .arg("build")
+            .current_dir(&dpdk_dir)                                                      
+            .status()
+            .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
+    } else {
+        Command::new("meson")
+            .arg("setup")
+            .arg(&format!("--buildtype={}", buildtype))
+            .arg(&format!("--prefix={}", dpdk_install_dir.to_str().unwrap()))
+            .arg("--wipe")
+            .arg("build")
+            .current_dir(&dpdk_dir)
+            .status()
+            .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
+    }
 
     println!("cargo:warning=Building DPDK...");
     Command::new("ninja")
