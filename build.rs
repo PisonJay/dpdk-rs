@@ -5,47 +5,13 @@ use std::env;
 use std::fs;
 
 fn main() {
-    // // This is a bit hax (we only rebuild if the git version changes) but hopefully good enough.
-    // println!("cargo:rerun-if-changed=.git/modules/dpdk/HEAD");
+    println!("cargo:rerun-if-env-changed=DPDK_PATH");
 
-    // let out_dir_s = env::var("OUT_DIR").unwrap();
-    // let out_dir = Path::new(&out_dir_s);
-    // let dpdk_install_dir = out_dir.join("dpdk-install");
-    // let dpdk_dir = Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()).join("dpdk");
-
-    // if !dpdk_install_dir.is_dir() {
-    //     fs::create_dir_all(&dpdk_install_dir).unwrap();
-    // }
-
-    // println!("cargo:warning=Configuring DPDK...");
-    // let build_dir = dpdk_dir.join("build");
-    // if !build_dir.exists() {
-    //     Command::new("meson")
-    //         .arg(&format!("--buildtype=release"))
-    //         .arg(&format!("--prefix={}", dpdk_install_dir.to_str().unwrap()))
-    //         .arg("build")
-    //         .current_dir(&dpdk_dir)                                                      
-    //         .status()
-    //         .unwrap_or_else(|e| panic!("Failed to configure DPDK: {:?}", e));
-    // }
-
-    // println!("cargo:warning=Building DPDK...");
-    // Command::new("ninja")
-    //     .args(&["-C", "build"])
-    //     .current_dir(&dpdk_dir)
-    //     .status()
-    //     .unwrap_or_else(|e| panic!("Failed to build DPDK: {:?}", e));
-
-    // println!("cargo:warning=Installing DPDK...");
-    // Command::new("ninja")
-    //     .args(&["-C", "build", "install"])
-    //     .current_dir(&dpdk_dir)
-    //     .status()
-    //     .unwrap_or_else(|e| panic!("Failed to install DPDK: {:?}", e)); 
-    //
-    let dpdk_path = Path::new(env::var("DPDK_PATH").unwrap());
-
-    let pkg_config_path = dpdk_install_dir.join("lib/x86_64-linux-gnu/pkgconfig");
+    let out_dir_s = env::var("OUT_DIR").unwrap();
+    let out_dir = Path::new(&out_dir_s);
+    let dpdk_path_s = env::var("DPDK_PATH").unwrap();
+    let dpdk_path = Path::new(&dpdk_path_s);
+    let pkg_config_path = dpdk_path.join("lib/x86_64-linux-gnu/pkgconfig");
     let cflags_bytes = Command::new("pkg-config")
         .env("PKG_CONFIG_PATH", &pkg_config_path)
         .args(&["--cflags", "libdpdk"])
@@ -82,20 +48,14 @@ fn main() {
         }
     }
 
+    // Link in `librte_net_mlx5` and its dependencies. 
+    lib_names.extend(&["rte_net_mlx5", "rte_bus_pci", "rte_bus_vdev", "rte_common_mlx5"]);
+
     // Step 1: Now that we've compiled and installed DPDK, point cargo to the libraries.
     println!("cargo:rustc-link-search=native={}", library_location.unwrap());
     for lib_name in &lib_names {
-        println!("cargo:rustc-link-lib=static={}", lib_name);
+        println!("cargo:rustc-link-lib={}", lib_name);
     }
-
-    println!("cargo:rustc-link-lib=rte_net_mlx5");
-    println!("cargo:rustc-link-lib=rte_common_mlx5");
-    println!("cargo:rustc-link-lib=rte_regex_mlx5");
-    println!("cargo:rustc-link-lib=rte_vdpa_mlx5");
-    println!("cargo:rustc-link-lib=rte_bus_pci");
-    println!("cargo:rustc-link-lib=mlx5");
-    println!("cargo:rustc-link-lib=ibverbs");
-    println!("cargo:rustc-link-lib=numa");
 
     // Step 2: Generate bindings for the DPDK headers.
     let mut builder = Builder::default();
@@ -114,7 +74,7 @@ fn main() {
     bindings.write_to_file(bindings_out).expect("Failed to write bindings");
 
     // Step 3: Compile a stub file so Rust can access `inline` functions in the headers 
-    // that aren't compiled into the staticlibs. 
+    // that aren't compiled into the libraries. 
     let mut builder = cc::Build::new();
     builder.opt_level(3);
     builder.pic(true);
@@ -124,20 +84,4 @@ fn main() {
         builder.include(header_location);
     }
     builder.compile("inlined");
-
-//    // Step 4: It seems like the flags from pkg-config above don't include all of the dynamic
-//    // libraries we need to be able to load the right drivers at runtime. Tell cargo to express a
-//    // dependency on these libraries, accumulated from running `ldd` on `testpmd`.
-//    let dynamic_libs = &[
-//        "ibverbs",
-//        "mlx4",
-//        "mlx5",
-//        "nl-3",
-//        "nl-route-3",
-//        "numa",
-//        "pcap",
-//    ];
-//    for dynamic_lib in dynamic_libs {
-//        println!("cargo:rustc-link-lib=dylib={}", dynamic_lib);
-//    }
 }

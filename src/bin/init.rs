@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::ptr;
 
 fn main() {
-    
+    load_mlx5_driver();    
     // let mlx5 = libloading::Library::new("librte_net_mlx5.so").unwrap();
     // let ibverbs = libloading::Library::new("libibverbs.so").unwrap();
     // println!("Loaded mlx5 and ibverbs...");
@@ -52,7 +52,6 @@ fn main() {
         println!("Link addr: {:x?}", link_addr);
     };
 
-    unsafe { mlx5_rx_burst(ptr::null_mut(), ptr::null_mut(), 0); }
 }
 
 unsafe fn initialize_dpdk_port(port_id: u16, mbuf_pool: *mut rte_mempool) {

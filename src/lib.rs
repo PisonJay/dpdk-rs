@@ -14,7 +14,14 @@ extern "C" {
 
 #[link(name = "rte_net_mlx5")]
 extern "C" {
-    pub fn mlx5_rx_burst(dpdkp_rxq: *mut c_void, pkts: *mut *mut rte_mbuf, pkts_n: u16);
+    fn rte_pmd_mlx5_get_dyn_flag_names();
+}
+
+#[inline(never)]
+pub fn load_mlx5_driver() {
+    if std::env::var("DONT_SET_THIS").is_ok() {
+        unsafe { rte_pmd_mlx5_get_dyn_flag_names(); }
+    }
 }
 
 #[inline]
@@ -39,10 +46,11 @@ pub unsafe fn rte_eth_rx_burst(port_id: u16, queue_id: u16, rx_pkts: *mut *mut r
 
 #[cfg(test)]
 mod tests {
+    use std::ptr;
     #[test]
     fn it_works() {
         unsafe {
-            crate::rte_pktmbuf_free(std::ptr::null_mut()); 
+            crate::mlx5_rx_burst(ptr::null_mut(), ptr::null_mut(), 0);
         }
     }
 }
