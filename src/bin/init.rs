@@ -4,13 +4,9 @@ use std::ffi::CString;
 use dpdk_rs::*;
 use std::mem::MaybeUninit;
 use std::time::Duration;
-use std::ptr;
 
 fn main() {
     load_mlx5_driver();    
-    // let mlx5 = libloading::Library::new("librte_net_mlx5.so").unwrap();
-    // let ibverbs = libloading::Library::new("libibverbs.so").unwrap();
-    // println!("Loaded mlx5 and ibverbs...");
 
     let mut args = vec![];
     let mut ptrs = vec![];

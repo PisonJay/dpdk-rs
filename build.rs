@@ -2,7 +2,6 @@ use bindgen::Builder;
 use std::process::Command;
 use std::path::Path;
 use std::env;
-use std::fs;
 
 fn main() {
     println!("cargo:rerun-if-env-changed=DPDK_PATH");
@@ -48,8 +47,10 @@ fn main() {
         }
     }
 
-    // Link in `librte_net_mlx5` and its dependencies. 
-    lib_names.extend(&["rte_net_mlx5", "rte_bus_pci", "rte_bus_vdev", "rte_common_mlx5"]);
+    // Link in `librte_net_mlx5` and its dependencies if desired. 
+    #[cfg(feature = "mlx5")] {
+        lib_names.extend(&["rte_net_mlx5", "rte_bus_pci", "rte_bus_vdev", "rte_common_mlx5"]);
+    }
 
     // Step 1: Now that we've compiled and installed DPDK, point cargo to the libraries.
     println!("cargo:rustc-link-search=native={}", library_location.unwrap());

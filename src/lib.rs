@@ -1,5 +1,3 @@
-use std::ffi::c_void;
-
 mod bindings;
 
 pub use bindings::*;
@@ -12,11 +10,13 @@ extern "C" {
     fn rte_eth_rx_burst_(port_id: u16, queue_id: u16, rx_pkts: *mut *mut rte_mbuf, nb_pkts: u16) -> u16;
 }
 
+#[cfg(feature = "mlx5")]
 #[link(name = "rte_net_mlx5")]
 extern "C" {
     fn rte_pmd_mlx5_get_dyn_flag_names();
 }
 
+#[cfg(feature = "mlx5")]
 #[inline(never)]
 pub fn load_mlx5_driver() {
     if std::env::var("DONT_SET_THIS").is_ok() {
@@ -44,13 +44,3 @@ pub unsafe fn rte_eth_rx_burst(port_id: u16, queue_id: u16, rx_pkts: *mut *mut r
     rte_eth_rx_burst_(port_id, queue_id, rx_pkts, nb_pkts)
 }
 
-#[cfg(test)]
-mod tests {
-    use std::ptr;
-    #[test]
-    fn it_works() {
-        unsafe {
-            crate::mlx5_rx_burst(ptr::null_mut(), ptr::null_mut(), 0);
-        }
-    }
-}
