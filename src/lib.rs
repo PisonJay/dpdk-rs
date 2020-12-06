@@ -1,4 +1,5 @@
 mod bindings;
+use std::os::raw::{c_char, c_int};
 
 pub use bindings::*;
 
@@ -8,6 +9,10 @@ extern "C" {
     fn rte_pktmbuf_alloc_(mp: *mut rte_mempool) -> *mut rte_mbuf;
     fn rte_eth_tx_burst_(port_id: u16, queue_id: u16, tx_pkts: *mut *mut rte_mbuf, nb_pkts: u16) -> u16;
     fn rte_eth_rx_burst_(port_id: u16, queue_id: u16, rx_pkts: *mut *mut rte_mbuf, nb_pkts: u16) -> u16;
+    fn rte_mbuf_refcnt_read_(m: *const rte_mbuf) -> u16;
+    fn rte_mbuf_refcnt_update_(m: *mut rte_mbuf, value: i16) -> u16;
+    fn rte_pktmbuf_adj_(packet: *mut rte_mbuf, len: u16) -> *mut c_char;
+    fn rte_pktmbuf_trim_(packet: *mut rte_mbuf, len: u16) -> c_int;
 }
 
 #[cfg(feature = "mlx5")]
@@ -42,5 +47,25 @@ pub unsafe fn rte_eth_tx_burst(port_id: u16, queue_id: u16, tx_pkts: *mut *mut r
 #[inline]
 pub unsafe fn rte_eth_rx_burst(port_id: u16, queue_id: u16, rx_pkts: *mut *mut rte_mbuf, nb_pkts: u16) -> u16 {
     rte_eth_rx_burst_(port_id, queue_id, rx_pkts, nb_pkts)
+}
+
+#[inline]
+pub unsafe fn rte_mbuf_refcnt_read(m: *const rte_mbuf) -> u16 {
+    rte_mbuf_refcnt_read_(m)
+}
+
+#[inline]
+pub unsafe fn rte_mbuf_refcnt_update(m: *mut rte_mbuf, value: i16) -> u16 {
+    rte_mbuf_refcnt_update_(m, value)
+}
+
+#[inline]
+pub unsafe fn rte_pktmbuf_adj(packet: *mut rte_mbuf, len: u16) -> *mut c_char {
+    rte_pktmbuf_adj_(packet, len)
+}
+
+#[inline]
+pub unsafe fn rte_pktmbuf_trim(packet: *mut rte_mbuf, len: u16) -> c_int {
+    rte_pktmbuf_trim_(packet, len)
 }
 
