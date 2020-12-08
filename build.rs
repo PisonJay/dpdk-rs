@@ -23,7 +23,7 @@ fn main() {
 
     for flag in cflags.split(' ') {
         if flag.starts_with("-I") {
-            let header_location = &flag[2..];
+            let header_location = flag[2..].trim();
             header_locations.push(header_location);
         }
     }
