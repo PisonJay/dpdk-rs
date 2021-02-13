@@ -2,7 +2,7 @@
 ## Build configuration
 This crate assumes you have DPDK installed globally, where both `pkg-config` and the dynamic loader can
 find it. However, if you don't want to install it globally, you can build DPDK with a prefix. Say you
-want to install it `$DPDK_PATH`:
+want to install it to `$DPDK_PATH`:
 ```
 meson --prefix=$DPDK_PATH build
 ninja -C build
