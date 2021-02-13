@@ -48,7 +48,7 @@ fn main() {
     // Step 1: Now that we've compiled and installed DPDK, point cargo to the libraries.
     println!("cargo:rustc-link-search=native={}", library_location.unwrap());
     for lib_name in &lib_names {
-        println!("cargo:rustc-link-lib={}", lib_name);
+        println!("cargo:rustc-link-lib=dylib={}", lib_name);
     }
 
     // Step 2: Generate bindings for the DPDK headers.
