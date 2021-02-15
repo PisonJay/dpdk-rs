@@ -6,6 +6,8 @@ use std::env;
 fn main() {
     let out_dir_s = env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir_s);
+
+    println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
     let cflags_bytes = Command::new("pkg-config")
         .args(&["--cflags", "libdpdk"])
         .output()
