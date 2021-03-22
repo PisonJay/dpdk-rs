@@ -33,3 +33,11 @@ char* rte_pktmbuf_adj_(struct rte_mbuf* m, uint16_t len) {
 int rte_pktmbuf_trim_(struct rte_mbuf* m, uint16_t len) {
     return rte_pktmbuf_trim(m, len);
 }
+
+uint16_t rte_pktmbuf_headroom_(const struct rte_mbuf* m) {
+    return rte_pktmbuf_headroom(m);
+}
+
+uint16_t rte_pktmbuf_tailroom_(const struct rte_mbuf* m) {
+    return rte_pktmbuf_tailroom(m);
+}
