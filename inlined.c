@@ -1,6 +1,7 @@
 #include <rte_mbuf.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
+#include <rte_errno.h>
 
 void rte_pktmbuf_free_(struct rte_mbuf *packet) {
     rte_pktmbuf_free(packet);
@@ -40,4 +41,8 @@ uint16_t rte_pktmbuf_headroom_(const struct rte_mbuf* m) {
 
 uint16_t rte_pktmbuf_tailroom_(const struct rte_mbuf* m) {
     return rte_pktmbuf_tailroom(m);
+}
+
+int rte_errno_() {
+    return rte_errno;
 }
