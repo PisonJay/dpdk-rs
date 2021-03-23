@@ -16,6 +16,7 @@ extern "C" {
     fn rte_pktmbuf_headroom_(m: *const rte_mbuf) -> u16;
     fn rte_pktmbuf_tailroom_(m: *const rte_mbuf) -> u16;
     fn rte_errno_() -> c_int;
+    fn rte_pktmbuf_chain_(head: *mut rte_mbuf, tail: *mut rte_mbuf) -> c_int;
 }
 
 #[cfg(feature = "mlx5")]
@@ -85,4 +86,9 @@ pub unsafe fn rte_pktmbuf_tailroom(m: *const rte_mbuf) -> u16 {
 #[inline]
 pub unsafe fn rte_errno() -> c_int {
     rte_errno_()
+}
+
+#[inline]
+pub unsafe fn rte_pktmbuf_chain(head: *mut rte_mbuf, tail: *mut rte_mbuf) -> c_int {
+    rte_pktmbuf_chain_(head, tail)
 }

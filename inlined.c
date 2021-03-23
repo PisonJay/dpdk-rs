@@ -46,3 +46,7 @@ uint16_t rte_pktmbuf_tailroom_(const struct rte_mbuf* m) {
 int rte_errno_() {
     return rte_errno;
 }
+
+int rte_pktmbuf_chain_(struct rte_mbuf* head, struct rte_mbuf* tail) {
+    return rte_pktmbuf_chain(head, tail);
+}
