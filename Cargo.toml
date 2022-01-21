@@ -13,4 +13,4 @@ cc = "1.0"
 [features]
 mlx5 = []
 
-default = ["mlx5"]
+default = []
